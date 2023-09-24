@@ -3,7 +3,7 @@ module github.com/1f349/cache
 go 1.21.1
 
 require (
-	github.com/MrMelon54/rescheduler v0.0.1
+	github.com/MrMelon54/rescheduler v0.0.2
 	github.com/stretchr/testify v1.8.4
 )
 

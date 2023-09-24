@@ -18,8 +18,8 @@ func timeUntil(t time.Time) time.Duration { return t.Sub(timeNow()) }
 // actions are completed in the cleaner goroutine to be concurrency safe.
 type Cache[K comparable, V any] struct {
 	items    sync.Map
-	chain    *keyed[K]                // linked list of to-expire keys
-	sched    *rescheduler.Rescheduler // TODO: add a mode to have the goroutine running only once after multiple Run calls
+	chain    *keyed[K] // linked list of to-expire keys
+	sched    *rescheduler.Rescheduler
 	close    chan struct{}
 	chainAdd chan keyed[K]
 	chainDel chan K
@@ -48,7 +48,12 @@ func (c item[T]) HasExpired() bool {
 
 // New creates a *Cache[K, V] ready to be used by the caller
 func New[K comparable, V any]() *Cache[K, V] {
-	c := &Cache[K, V]{}
+	c := &Cache[K, V]{
+		items:    sync.Map{},
+		close:    make(chan struct{}, 1),
+		chainAdd: make(chan keyed[K], 1),
+		chainDel: make(chan K, 1),
+	}
 	c.sched = rescheduler.NewRescheduler(c.cleaner)
 	return c
 }
@@ -67,13 +72,25 @@ func (c *Cache[K, V]) Close() {
 // The cleaner is stopped whenever the chain is empty due to there being no chain
 // to manage.
 func (c *Cache[K, V]) cleaner() {
-	var t *time.Timer
-	if c.chain == nil {
-		// fake timer as this select isn't used for an empty chain
-		t = &time.Timer{C: make(chan time.Time)}
-	} else {
-		t = time.NewTimer(timeUntil(c.chain.expires))
+	// cleaner is always called from Set or Delete methods with a value sent on chainAdd or chainDel
+	select {
+	case node := <-c.chainAdd:
+		c.chainInsert(node)
+	case key := <-c.chainDel:
+		c.chainSplice(key)
+	default:
+		// skip if chainAdd or chainDel isn't ready
+
+		println("Skip first select")
 	}
+
+	// at this point if the chain is empty then exit
+	if c.chain == nil {
+		return
+	}
+
+	// create a timer for the next expiry
+	t := time.NewTimer(timeUntil(c.chain.expires))
 
 	for {
 		select {
@@ -87,21 +104,12 @@ func (c *Cache[K, V]) cleaner() {
 			}
 			// the chain will not be empty after this insert so no check is required
 			c.chainInsert(node)
-
-			t.Reset(timeUntil(c.chain.expires))
 		case key := <-c.chainDel:
 			// stop the timer safely
 			if !t.Stop() {
 				<-t.C
 			}
 			c.chainSplice(key)
-
-			// if there is no chain then kill the expiry scheduler
-			if c.chain == nil {
-				return
-			}
-
-			t.Reset(timeUntil(c.chain.expires))
 		case <-t.C:
 			// if there is no chain then kill the expiry scheduler
 			if c.chain == nil {
@@ -109,18 +117,18 @@ func (c *Cache[K, V]) cleaner() {
 			}
 
 			// remove all expired entries
-			for c.chain.HasExpired() {
+			for c.chain != nil && c.chain.HasExpired() {
 				c.items.Delete(c.chain.data)
 				c.chain = c.chain.next
 			}
-
-			// if there is no chain then kill the expiry scheduler
-			if c.chain == nil {
-				return
-			}
-
-			t.Reset(timeUntil(c.chain.expires))
 		}
+
+		// if there is no chain then kill the expiry scheduler
+		if c.chain == nil {
+			return
+		}
+
+		t.Reset(timeUntil(c.chain.expires))
 	}
 }
 
@@ -151,6 +159,11 @@ func (c *Cache[K, V]) chainInsert(node keyed[K]) {
 }
 
 func (c *Cache[K, V]) chainSplice(key K) {
+	// quick path if chain is empty
+	if c.chain == nil {
+		return
+	}
+
 	// quick path if the first node matches
 	if c.chain.data == key {
 		node := c.chain
@@ -208,6 +221,13 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 //
 // If an item is added with the same key then this item with be overwritten.
 func (c *Cache[K, V]) SetPermanent(key K, value V) {
+	// if the cache is closed then just return
+	select {
+	case <-c.close:
+		return
+	default:
+	}
+
 	i := &item[V]{data: value} // expires is not set here
 	c.items.Store(key, i)
 }
@@ -216,6 +236,13 @@ func (c *Cache[K, V]) SetPermanent(key K, value V) {
 //
 // If an item is added with the same key then this item with be overwritten.
 func (c *Cache[K, V]) Set(key K, value V, expires time.Time) {
+	// if the cache is closed then just return
+	select {
+	case <-c.close:
+		return
+	default:
+	}
+
 	if expires.Before(timeNow()) {
 		return
 	}
@@ -223,6 +250,20 @@ func (c *Cache[K, V]) Set(key K, value V, expires time.Time) {
 	i := &item[V]{data: value, expires: expires}
 	c.items.Store(key, i)
 	c.chainAdd <- keyed[K]{item: item[K]{data: key, expires: expires}}
+	c.sched.Run()
+}
+
+// Delete removes an item from the cache.
+func (c *Cache[K, V]) Delete(key K) {
+	// if the cache is closed then just return
+	select {
+	case <-c.close:
+		return
+	default:
+	}
+
+	c.items.Delete(key)
+	c.chainDel <- key
 	c.sched.Run()
 }
 
@@ -239,6 +280,6 @@ func (c *Cache[K, V]) Range(f func(key K, value V) bool) {
 			return true
 		}
 
-		return f(key.(K), value.(V))
+		return f(key.(K), item.data)
 	})
 }
