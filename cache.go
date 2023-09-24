@@ -80,8 +80,6 @@ func (c *Cache[K, V]) cleaner() {
 		c.chainSplice(key)
 	default:
 		// skip if chainAdd or chainDel isn't ready
-
-		println("Skip first select")
 	}
 
 	// at this point if the chain is empty then exit
