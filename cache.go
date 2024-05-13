@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"github.com/MrMelon54/rescheduler"
+	"github.com/mrmelon54/rescheduler"
 	"sync"
 	"time"
 )

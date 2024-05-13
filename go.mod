@@ -1,10 +1,10 @@
 module github.com/1f349/cache
 
-go 1.21.1
+go 1.21
 
 require (
-	github.com/MrMelon54/rescheduler v0.0.2
-	github.com/stretchr/testify v1.8.4
+	github.com/mrmelon54/rescheduler v0.0.3
+	github.com/stretchr/testify v1.9.0
 )
 
 require (
