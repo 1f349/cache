@@ -116,7 +116,7 @@ func (c *Cache[K, V]) cleaner() {
 
 			// remove all expired entries
 			for c.chain != nil && c.chain.HasExpired() {
-				c.items.Delete(c.chain.data)
+				c.items.CompareAndDelete(c.chain.data, c.chain.item)
 				c.chain = c.chain.next
 			}
 		}
