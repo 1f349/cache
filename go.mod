@@ -2,10 +2,7 @@ module github.com/1f349/cache
 
 go 1.21
 
-require (
-	github.com/mrmelon54/rescheduler v0.0.3
-	github.com/stretchr/testify v1.10.0
-)
+require github.com/stretchr/testify v1.10.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

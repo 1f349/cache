@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"github.com/mrmelon54/rescheduler"
 	"sync"
 	"time"
 )
@@ -19,7 +18,6 @@ func timeUntil(t time.Time) time.Duration { return t.Sub(timeNow()) }
 type Cache[K comparable, V any] struct {
 	items    sync.Map
 	chain    *keyed[K] // linked list of to-expire keys
-	sched    *rescheduler.Rescheduler
 	close    chan struct{}
 	chainAdd chan keyed[K]
 	chainDel chan K
@@ -54,7 +52,7 @@ func New[K comparable, V any]() *Cache[K, V] {
 		chainAdd: make(chan keyed[K], 1),
 		chainDel: make(chan K, 1),
 	}
-	c.sched = rescheduler.NewRescheduler(c.cleaner)
+	go c.cleaner()
 	return c
 }
 
@@ -248,7 +246,6 @@ func (c *Cache[K, V]) Set(key K, value V, expires time.Time) {
 	i := &item[V]{data: value, expires: expires}
 	c.items.Store(key, i)
 	c.chainAdd <- keyed[K]{item: item[K]{data: key, expires: expires}}
-	c.sched.Run()
 }
 
 // Delete removes an item from the cache.
@@ -262,7 +259,6 @@ func (c *Cache[K, V]) Delete(key K) {
 
 	c.items.Delete(key)
 	c.chainDel <- key
-	c.sched.Run()
 }
 
 // Range calls f with every key-value pair, which has not expired, currently

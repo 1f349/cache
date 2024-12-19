@@ -93,7 +93,7 @@ func TestCache_Delete(t *testing.T) {
 	c.Delete("a")
 
 	// scheduler should finish after deleting the item
-	c.sched.Wait()
+	time.Sleep(time.Second)
 	assert.Nil(t, c.chain)
 }
 
@@ -129,7 +129,7 @@ func TestCache_Cleaner(t *testing.T) {
 	assert.Equal(t, "", get)
 
 	// scheduler should finish after the chain is empty
-	c.sched.Wait()
+	time.Sleep(time.Second)
 	assert.Nil(t, c.chain)
 }
 
