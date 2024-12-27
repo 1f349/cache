@@ -152,3 +152,21 @@ func TestCache_UpdateExpiry(t *testing.T) {
 	assert.True(t, b)
 	assert.Equal(t, "b", get)
 }
+
+func TestCache_ClearerDeath(t *testing.T) {
+	timeNow = func() time.Time { return time.Now() }
+
+	c := New[string, string]()
+
+	time.Sleep(10 * time.Millisecond)
+
+	var added bool
+	go func() {
+		c.chainAdd <- keyed[string]{item: item[string]{data: "a"}}
+		c.chainAdd <- keyed[string]{item: item[string]{data: "b"}}
+		added = true
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	assert.True(t, added)
+}
