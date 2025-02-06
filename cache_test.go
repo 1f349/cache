@@ -110,7 +110,7 @@ func TestCache_Range(t *testing.T) {
 }
 
 func TestCache_Cleaner(t *testing.T) {
-	timeNow = func() time.Time { return time.Now() }
+	timeNow = time.Now
 
 	n := time.Now().Add(2 * time.Second)
 	c := New[string, string]()
@@ -134,7 +134,7 @@ func TestCache_Cleaner(t *testing.T) {
 }
 
 func TestCache_UpdateExpiry(t *testing.T) {
-	timeNow = func() time.Time { return time.Now() }
+	timeNow = time.Now
 
 	c := New[string, string]()
 	c.Set("a", "b", time.Now().Add(2*time.Second))
@@ -154,7 +154,7 @@ func TestCache_UpdateExpiry(t *testing.T) {
 }
 
 func TestCache_ClearerDeath(t *testing.T) {
-	timeNow = func() time.Time { return time.Now() }
+	timeNow = time.Now
 
 	c := New[string, string]()
 
