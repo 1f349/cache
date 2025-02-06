@@ -193,10 +193,17 @@ func (c *Cache[K, V]) SetPermanent(key K, value V) {
 	c.items.Store(key, i)
 }
 
-// Set adds an item to the cache with an expiry date.
+// Set adds an item to the cache with an expiry duration.
 //
 // If an item is added with the same key then this item with be overwritten.
-func (c *Cache[K, V]) Set(key K, value V, expires time.Time) {
+func (c *Cache[K, V]) Set(key K, value V, expires time.Duration) {
+	c.SetAbs(key, value, timeNow().Add(expires))
+}
+
+// SetAbs adds an item to the cache with an expiry date.
+//
+// If an item is added with the same key then this item with be overwritten.
+func (c *Cache[K, V]) SetAbs(key K, value V, expires time.Time) {
 	// if the cache is closed then just return
 	select {
 	case <-c.close:

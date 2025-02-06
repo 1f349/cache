@@ -71,8 +71,26 @@ func TestCache_SetPermanent(t *testing.T) {
 }
 
 func TestCache_Set(t *testing.T) {
+	timeNow = func() time.Time { return time.Date(nextYear, time.January, 1, 0, 0, 0, 0, time.UTC) }
+
 	c := New[string, string]()
-	c.Set("a", "b", time.Date(nextYear, time.January, 1, 0, 0, 0, 0, time.UTC))
+	c.Set("a", "b", 5*time.Minute)
+
+	value, ok := c.items.Load("a")
+	v := value.(*item[string])
+	assert.Equal(t, item[string]{
+		data:    "b",
+		expires: timeNow().Add(5 * time.Minute),
+	}, *v)
+	assert.True(t, ok)
+
+	value, ok = c.items.Load("b")
+	assert.False(t, ok)
+}
+
+func TestCache_SetAbs(t *testing.T) {
+	c := New[string, string]()
+	c.SetAbs("a", "b", time.Date(nextYear, time.January, 1, 0, 0, 0, 0, time.UTC))
 
 	value, ok := c.items.Load("a")
 	v := value.(*item[string])
@@ -112,9 +130,8 @@ func TestCache_Range(t *testing.T) {
 func TestCache_Cleaner(t *testing.T) {
 	timeNow = time.Now
 
-	n := time.Now().Add(2 * time.Second)
 	c := New[string, string]()
-	c.Set("a", "b", n)
+	c.Set("a", "b", 2*time.Second)
 
 	// check before expiry
 	time.Sleep(time.Second)
@@ -137,14 +154,14 @@ func TestCache_UpdateExpiry(t *testing.T) {
 	timeNow = time.Now
 
 	c := New[string, string]()
-	c.Set("a", "b", time.Now().Add(2*time.Second))
+	c.Set("a", "b", 2*time.Second)
 
 	time.Sleep(time.Second)
 	get, b := c.Get("a")
 	assert.True(t, b)
 	assert.Equal(t, "b", get)
 
-	c.Set("a", "b", time.Now().Add(5*time.Second))
+	c.Set("a", "b", 5*time.Second)
 
 	// after expiry of the first set call
 	time.Sleep(2 * time.Second)
